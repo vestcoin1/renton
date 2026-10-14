@@ -1,0 +1,20 @@
+{
+  "name": "renton-shared",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Types and reference data shared by renton web, mobile and API.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts",
+    "./types": "./src/types.ts",
+    "./reference": "./src/reference.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}
+
+

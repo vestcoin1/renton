@@ -1,0 +1,11 @@
+{
+  "$schema": "https://ui.shadcn.com/schema.json",
+  "style": "new-york",
+  "rsc": true,
+  "tsx": true,
+  "tailwind": { "config": "", "css": "src/styles.css", "baseColor": "slate", "cssVariables": true },
+  "aliases": { "components": "renton-ui", "ui": "renton-ui/ui", "utils": "renton-core/utils", "lib": "renton-core", "hooks": "renton-core/hooks" },
+  "iconLibrary": "lucide"
+}
+
+

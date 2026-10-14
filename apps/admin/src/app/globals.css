@@ -1,0 +1,6 @@
+@import "tailwindcss";
+@import "../../../../packages/ui/src/styles.css";
+
+/* The shared packages live outside this app, so Tailwind has to be told to scan them for class names. */
+@source "../../../../packages/ui/src";
+@source "../../../../packages/core/src";

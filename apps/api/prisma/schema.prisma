@@ -1,0 +1,341 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  tenant
+  landlord
+  admin
+}
+
+enum VerificationStage {
+  draft
+  submitted
+  inspection_scheduled
+  under_review
+  verified
+  published
+  changes_requested
+  rejected
+}
+
+enum OccupancyStatus {
+  vacant
+  occupied
+  available_soon
+}
+
+enum ApplicationStatus {
+  pending
+  approved
+  rejected
+}
+
+enum PaymentStatus {
+  awaiting_payment
+  submitted
+  verified
+  rejected
+}
+
+enum MaintenanceStatus {
+  submitted
+  investigating
+  awaiting_approval
+  approved
+  declined
+  in_progress
+  completed
+}
+
+enum LeaseStatus {
+  active
+  expiring
+  overdue
+  ended
+}
+
+enum ReportCategory {
+  fraud
+  property
+  user
+}
+
+enum ReportStatus {
+  open
+  investigating
+  resolved
+  dismissed
+}
+
+enum NotificationKind {
+  application
+  verification
+  match
+  message
+  payment
+  system
+  maintenance
+  lease
+}
+
+model User {
+  id               String   @id
+  role             UserRole
+  name             String
+  email            String   @unique
+  phone            String
+  city             String
+  joinedAt         DateTime
+  identityVerified Boolean  @default(false)
+  status           String   @default("active")
+  avatarHue        Int?
+  identity         Json?
+  metadata         Json?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@map("users")
+}
+
+model Property {
+  id             String          @id
+  title          String
+  type           String
+  description    String
+  state          String
+  city           String
+  area           String
+  address        String
+  rent           Int
+  serviceCharge  Int
+  cautionDeposit Int
+  bedrooms       Int
+  bathrooms      Int
+  toilets        Int
+  sizeSqm        Int
+  furnished      Boolean
+  parkingSpaces Int
+  waterSupply    String
+  power          String
+  security       Boolean
+  amenities      String[]
+  images         String[]
+  verification   VerificationStage
+  occupancy      OccupancyStatus
+  availableFrom  DateTime
+  landlordId     String
+  listedAt       DateTime
+  views          Int             @default(0)
+  featured       Boolean         @default(false)
+  nearby         Json
+  verifiedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([city, state])
+  @@map("properties")
+}
+
+model Application {
+  id           String            @id
+  propertyId   String
+  tenantId     String
+  status       ApplicationStatus @default(pending)
+  submittedAt  DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  moveInDate   DateTime
+  leaseYears   Int
+  message      String
+  documents    String[]
+  landlordNote String?
+  invoiceId     String?
+
+  @@index([tenantId, status])
+  @@map("applications")
+}
+
+model WaitingList {
+  id          String   @id
+  tenantId    String
+  city        String
+  areas       String[]
+  propertyType String
+  bedrooms    Int
+  minBudget   Int
+  maxBudget   Int
+  moveIn      String
+  status      String   @default("active")
+  createdAt   DateTime @default(now())
+
+  @@map("waiting_lists")
+}
+
+model Lease {
+  id           String      @id
+  propertyId    String
+  tenantId      String
+  unit          String
+  leaseStart    DateTime
+  leaseEnd      DateTime
+  annualRent    Int
+  status        LeaseStatus @default(active)
+  lastPaymentAt DateTime?
+  intent        Json?
+  rentReview    Json?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@map("leases")
+}
+
+model VerificationRequest {
+  id           String            @id
+  propertyId    String
+  submittedAt  DateTime          @default(now())
+  stage        VerificationStage
+  priority     String
+  inspector    String?
+  inspectionDate DateTime?
+  documents    Json
+  checklist    Json
+  notes        Json
+  riskFlags    String[]
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  @@map("verification_requests")
+}
+
+model Report {
+  id          String       @id
+  category    ReportCategory
+  subject     String
+  subjectId   String
+  reason      String
+  details     String
+  reportedBy  String
+  severity    String
+  status      ReportStatus @default(open)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("reports")
+}
+
+model Notification {
+  id        String          @id
+  userId    String
+  title     String
+  body      String
+  kind      NotificationKind
+  href      String?
+  read      Boolean         @default(false)
+  createdAt DateTime        @default(now())
+
+  @@index([userId, read])
+  @@map("notifications")
+}
+
+model MaintenanceRequest {
+  id          String             @id
+  leaseId     String
+  propertyId   String
+  tenantId     String
+  landlordId   String
+  title       String
+  category    String
+  location    String
+  description  String
+  urgency     String
+  media       Json
+  status      MaintenanceStatus @default(submitted)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+  investigation Json?
+  landlordDecision Json?
+  technician Json?
+  completion Json?
+  tenantFeedback Json?
+  timeline Json
+
+  @@map("maintenance_requests")
+}
+
+model PaymentInvoice {
+  id              String        @id
+  applicationId   String?
+  propertyId       String
+  tenantId         String
+  landlordId       String
+  reference       String
+  items           Json
+  total           Int
+  createdAt       DateTime      @default(now())
+  dueDate         DateTime
+  status          PaymentStatus @default(awaiting_payment)
+  receipt         Json?
+  rejectionReason String?
+  verifiedAt      DateTime?
+  verifiedBy      String?
+  receiptNumber   String?
+  agreementNumber String?
+  leaseId         String?
+
+  @@map("payment_invoices")
+}
+
+model CautionRefund {
+  id          String   @id
+  leaseId     String
+  tenantId    String
+  propertyId  String
+  landlordId  String
+  amount      Int
+  requestedAt DateTime @default(now())
+  eligibleFrom DateTime
+  bank        Json
+  status      String   @default("requested")
+  deduction   Json?
+  approvedAt  DateTime?
+  paidAt      DateTime?
+  payoutReference String?
+
+  @@map("caution_refunds")
+}
+
+model RentPlan {
+  id          String   @id
+  leaseId     String
+  tenantId    String
+  propertyId  String
+  landlordId  String
+  reference   String
+  dueDate     DateTime
+  schedule    String
+  createdAt   DateTime @default(now())
+  contributions Json
+  status      String   @default("saving")
+  payout      Json?
+
+  @@map("rent_plans")
+}
+
+model RentContribution {
+  id         String   @id
+  rentPlanId String
+  amount     Int
+  receipt    Json
+  status     String   @default("submitted")
+  rejectionReason String?
+  verifiedAt DateTime?
+  receiptNumber String?
+  createdAt  DateTime @default(now())
+
+  @@map("rent_contributions")
+}

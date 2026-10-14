@@ -1,0 +1,27 @@
+{
+  "name": "renton",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently -n web,admin -c blue,magenta \"npm run dev -w renton-web\" \"npm run dev -w renton-admin\"",
+    "dev:web": "npm run dev -w renton-web",
+    "dev:admin": "npm run dev -w renton-admin",
+    "build": "npm run build -w renton-web -w renton-admin",
+    "start": "concurrently -n web,admin -c blue,magenta \"npm run start -w renton-web\" \"npm run start -w renton-admin\"",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "verify": "npm run verify -w renton-web",
+    "db:generate": "npm run prisma:generate -w renton-api",
+    "db:migrate": "npm run prisma:migrate -w renton-api",
+    "db:push": "npm run db:push -w renton-api",
+    "db:studio": "npm run prisma:studio -w renton-api"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.5"
+  }
+}
+
+

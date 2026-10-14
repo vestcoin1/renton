@@ -1,0 +1,51 @@
+import {
+  AirVent,
+  ArrowUpDown,
+  Baby,
+  BatteryCharging,
+  Car,
+  Cctv,
+  Check,
+  ChefHat,
+  Droplets,
+  Dumbbell,
+  Fence,
+  Flame,
+  Fuel,
+  House,
+  Layers,
+  ShieldCheck,
+  Shirt,
+  Sun,
+  Waves,
+  Wifi,
+  Zap,
+  type LucideIcon,
+} from "lucide-react";
+
+const MAP: Record<string, LucideIcon> = {
+  "24/7 Security": ShieldCheck,
+  Borehole: Droplets,
+  "Fitted Kitchen": ChefHat,
+  Wardrobes: Shirt,
+  "Air Conditioning": AirVent,
+  "Swimming Pool": Waves,
+  Gym: Dumbbell,
+  Elevator: ArrowUpDown,
+  "Inverter Backup": BatteryCharging,
+  Generator: Fuel,
+  "Prepaid Meter": Zap,
+  CCTV: Cctv,
+  "Boys' Quarters": House,
+  Balcony: Sun,
+  Parking: Car,
+  "Gated Estate": Fence,
+  "Water Heater": Flame,
+  "POP Ceiling": Layers,
+  "Wi-Fi Ready": Wifi,
+  "Children's Playground": Baby,
+};
+
+export function amenityIcon(name: string): LucideIcon {
+  return MAP[name] ?? Check;
+}

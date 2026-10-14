@@ -1,0 +1,28 @@
+{
+  "name": "renton-core",
+  "version": "0.1.0",
+  "private": true,
+  "description": "renton data layer and domain logic shared by the web and admin apps (and later mobile). Every store action is a future renton-api call.",
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "renton-shared": "*",
+    "clsx": "^2.1.1",
+    "tailwind-merge": "^3.7.0",
+    "zustand": "^5.0.15"
+  },
+  "peerDependencies": {
+    "react": "^19.3.0"
+  },
+  "devDependencies": {
+    "@types/react": "^19.3.0",
+    "typescript": "^5.9.3"
+  }
+}
+
+
