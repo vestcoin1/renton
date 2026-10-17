@@ -267,7 +267,7 @@ export const ADMIN: User = {
   id: "u-admin-1",
   role: "admin",
   name: "Ibrahim Lawal",
-  email: "ibrahimrenton.ng",
+  email: "ibrahim@renton.ng",
   phone: "+234 700 renton",
   city: "Abuja",
   joinedAt: daysAgo(700),

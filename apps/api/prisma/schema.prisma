@@ -1,3 +1,10 @@
+// renton domain model. Tables and columns are snake_case (Supabase convention);
+// Prisma fields are camelCase to match renton-shared/types.
+//
+// Values that contain spaces in the domain types (property type, water/power,
+// maintenance category, document kind…) are plain strings validated by the API,
+// because Prisma enum values must be identifiers.
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -7,10 +14,38 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// ─── Enums ────────────────────────────────────────────────────────────────────
+
 enum UserRole {
   tenant
   landlord
   admin
+}
+
+enum UserStatus {
+  active
+  suspended
+  pending
+}
+
+enum IdentityStatus {
+  unverified
+  pending
+  verified
+  rejected
+}
+
+enum IdentityDocumentKind {
+  government_id
+  selfie
+  proof_of_income
+  proof_of_address
+  cac_certificate
+}
+
+enum FileKind {
+  image
+  pdf
 }
 
 enum VerificationStage {
@@ -30,14 +65,89 @@ enum OccupancyStatus {
   available_soon
 }
 
+enum Priority {
+  high
+  normal
+  low
+}
+
+enum DocumentStatus {
+  verified
+  pending
+  flagged
+}
+
 enum ApplicationStatus {
   pending
   approved
   rejected
 }
 
+enum WaitingListStatus {
+  active
+  paused
+  matched
+}
+
+enum LeaseStatus {
+  active
+  expiring
+  overdue
+  ended
+}
+
+enum LeaseDecision {
+  renew
+  move_out
+}
+
+enum LeaseIntentResponse {
+  accepted
+  acknowledged
+}
+
+enum RentReviewStatus {
+  proposed
+  countered
+  agreed
+  withdrawn
+}
+
+enum Party {
+  landlord
+  tenant
+}
+
 enum PaymentStatus {
   awaiting_payment
+  submitted
+  verified
+  rejected
+}
+
+enum InvoiceItemKey {
+  rent
+  caution
+  agency
+}
+
+enum RefundStatus {
+  requested
+  approved
+  paid
+}
+
+enum RentPlanSchedule {
+  monthly
+  flexible
+}
+
+enum RentPlanStatus {
+  saving
+  paid_out
+}
+
+enum ContributionStatus {
   submitted
   verified
   rejected
@@ -53,17 +163,29 @@ enum MaintenanceStatus {
   completed
 }
 
-enum LeaseStatus {
-  active
-  expiring
-  overdue
-  ended
+enum MaintenanceUrgency {
+  low
+  medium
+  high
+  emergency
+}
+
+enum MediaKind {
+  image
+  video
 }
 
 enum ReportCategory {
   fraud
   property
   user
+}
+
+enum ReportSeverity {
+  critical
+  high
+  medium
+  low
 }
 
 enum ReportStatus {
@@ -84,27 +206,124 @@ enum NotificationKind {
   lease
 }
 
-model User {
-  id               String   @id
+// ─── People ───────────────────────────────────────────────────────────────────
+
+/// One row per account. `authUserId` links to Supabase Auth (auth.users.id) once the account signs in for real.
+model Profile {
+  id               String     @id @default(cuid())
+  authUserId       String?    @unique @map("auth_user_id") @db.Uuid
   role             UserRole
   name             String
-  email            String   @unique
+  /// Stored lower-cased; the API normalises before writing.
+  email            String     @unique
   phone            String
   city             String
-  joinedAt         DateTime
-  identityVerified Boolean  @default(false)
-  status           String   @default("active")
-  avatarHue        Int?
-  identity         Json?
-  metadata         Json?
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
+  status           UserStatus @default(active)
+  /// Legacy flag for seeded accounts that predate document uploads; new accounts rely on `identity.status`.
+  identityVerified Boolean    @default(false) @map("identity_verified")
+  avatarHue        Int?       @map("avatar_hue")
+  joinedAt         DateTime   @default(now()) @map("joined_at") @db.Timestamptz(3)
+  createdAt        DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt        DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  @@map("users")
+  tenantProfile     TenantProfile?
+  landlordProfile   LandlordProfile?
+  identity          IdentityVerification?    @relation("IdentitySubject")
+  identityReviews   IdentityVerification[]   @relation("IdentityReviewer")
+  properties        Property[]
+  savedProperties   SavedProperty[]
+  applications      Application[]
+  waitingLists      WaitingList[]
+  leases            Lease[]
+  notifications     Notification[]
+  tenantInvoices    PaymentInvoice[]         @relation("InvoiceTenant")
+  landlordInvoices  PaymentInvoice[]         @relation("InvoiceLandlord")
+  verifiedInvoices  PaymentInvoice[]         @relation("InvoiceVerifier")
+  tenantRefunds     CautionRefund[]          @relation("RefundTenant")
+  landlordRefunds   CautionRefund[]          @relation("RefundLandlord")
+  tenantRentPlans   RentPlan[]               @relation("RentPlanTenant")
+  landlordRentPlans RentPlan[]               @relation("RentPlanLandlord")
+  rentPlanPayouts   RentPlan[]               @relation("RentPlanPayer")
+  tenantRepairs     MaintenanceRequest[]     @relation("MaintenanceTenant")
+  landlordRepairs   MaintenanceRequest[]     @relation("MaintenanceLandlord")
+  threads           MessageThreadParticipant[]
+  messages          Message[]
+
+  @@index([role])
+  @@map("profiles")
 }
 
+model TenantProfile {
+  profileId      String  @id @map("profile_id")
+  occupation     String
+  employer       String
+  employmentType String  @map("employment_type")
+  monthlyIncome  Int     @map("monthly_income")
+  maritalStatus  String  @map("marital_status")
+  householdSize  Int     @map("household_size")
+  guarantor      String?
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("tenant_profiles")
+}
+
+model LandlordProfile {
+  profileId      String  @id @map("profile_id")
+  company        String?
+  isDiaspora     Boolean @default(false) @map("is_diaspora")
+  residence      String
+  responseRate   Int     @default(0) @map("response_rate")
+  responseTime   String  @default("") @map("response_time")
+  /// Portfolio size the landlord declared (may exceed listings on renton).
+  propertiesCount Int    @default(0) @map("properties_count")
+  rating         Float   @default(0)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@map("landlord_profiles")
+}
+
+/// KYC: unverified → pending (documents uploaded) → verified | rejected (re-submit).
+model IdentityVerification {
+  profileId       String         @id @map("profile_id")
+  status          IdentityStatus @default(unverified)
+  idType          String?        @map("id_type")
+  idNumber        String?        @map("id_number")
+  submittedAt     DateTime?      @map("submitted_at") @db.Timestamptz(3)
+  reviewedAt      DateTime?      @map("reviewed_at") @db.Timestamptz(3)
+  reviewedById    String?        @map("reviewed_by_id")
+  rejectionReason String?        @map("rejection_reason")
+
+  profile    Profile            @relation("IdentitySubject", fields: [profileId], references: [id], onDelete: Cascade)
+  reviewedBy Profile?           @relation("IdentityReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  documents  IdentityDocument[]
+
+  @@index([status])
+  @@map("identity_verifications")
+}
+
+model IdentityDocument {
+  id             String               @id @default(cuid())
+  verificationId String               @map("verification_id")
+  kind           IdentityDocumentKind
+  name           String
+  fileKind       FileKind             @map("file_kind")
+  /// Storage object path (private bucket) or, for legacy rows, a URL.
+  url            String
+  uploadedAt     DateTime             @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+
+  verification IdentityVerification @relation(fields: [verificationId], references: [profileId], onDelete: Cascade)
+
+  @@index([verificationId])
+  @@map("identity_documents")
+}
+
+// ─── Properties & verification ────────────────────────────────────────────────
+
 model Property {
-  id             String          @id
+  id             String            @id @default(cuid())
+  landlordId     String            @map("landlord_id")
   title          String
   type           String
   description    String
@@ -112,230 +331,584 @@ model Property {
   city           String
   area           String
   address        String
+  /// Annual rent in Naira.
   rent           Int
-  serviceCharge  Int
-  cautionDeposit Int
+  serviceCharge  Int               @map("service_charge")
+  cautionDeposit Int               @map("caution_deposit")
   bedrooms       Int
   bathrooms      Int
   toilets        Int
-  sizeSqm        Int
+  sizeSqm        Int               @map("size_sqm")
   furnished      Boolean
-  parkingSpaces Int
-  waterSupply    String
+  parkingSpaces  Int               @map("parking_spaces")
+  waterSupply    String            @map("water_supply")
   power          String
   security       Boolean
   amenities      String[]
-  images         String[]
-  verification   VerificationStage
-  occupancy      OccupancyStatus
-  availableFrom  DateTime
-  landlordId     String
-  listedAt       DateTime
-  views          Int             @default(0)
-  featured       Boolean         @default(false)
-  nearby         Json
-  verifiedAt     DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  verification   VerificationStage @default(draft)
+  occupancy      OccupancyStatus   @default(vacant)
+  availableFrom  DateTime          @map("available_from") @db.Date
+  listedAt       DateTime          @default(now()) @map("listed_at") @db.Timestamptz(3)
+  verifiedAt     DateTime?         @map("verified_at") @db.Timestamptz(3)
+  views          Int               @default(0)
+  featured       Boolean           @default(false)
+  /// NearbyPlace[] — descriptive, never queried by field.
+  nearby         Json              @default("[]")
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  landlord           Profile              @relation(fields: [landlordId], references: [id], onDelete: Restrict)
+  images             PropertyImage[]
+  verificationRequest VerificationRequest?
+  savedBy            SavedProperty[]
+  applications       Application[]
+  leases             Lease[]
+  invoices           PaymentInvoice[]
+  refunds            CautionRefund[]
+  rentPlans          RentPlan[]
+  maintenance        MaintenanceRequest[]
+  threads            MessageThread[]
+
+  @@index([verification, occupancy])
   @@index([city, state])
+  @@index([landlordId])
   @@map("properties")
 }
 
-model Application {
-  id           String            @id
-  propertyId   String
-  tenantId     String
-  status       ApplicationStatus @default(pending)
-  submittedAt  DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
-  moveInDate   DateTime
-  leaseYears   Int
-  message      String
-  documents    String[]
-  landlordNote String?
-  invoiceId     String?
+model PropertyImage {
+  id         String @id @default(cuid())
+  propertyId String @map("property_id")
+  url        String
+  position   Int
 
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@unique([propertyId, position])
+  @@map("property_images")
+}
+
+/// The admin pipeline for one listing: submitted → inspection_scheduled → under_review → verified → published.
+model VerificationRequest {
+  id             String            @id @default(cuid())
+  propertyId     String            @unique @map("property_id")
+  stage          VerificationStage
+  priority       Priority          @default(normal)
+  /// Field officer's name (inspectors are not necessarily platform users).
+  inspector      String?
+  inspectionDate DateTime?         @map("inspection_date") @db.Timestamptz(3)
+  riskFlags      String[]          @map("risk_flags")
+  submittedAt    DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  property  Property                    @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  documents VerificationDocument[]
+  checklist VerificationChecklistItem[]
+  notes     VerificationNote[]
+
+  @@index([stage])
+  @@map("verification_requests")
+}
+
+model VerificationDocument {
+  id         String         @id @default(cuid())
+  requestId  String         @map("request_id")
+  name       String
+  kind       String
+  sizeKb     Int            @map("size_kb")
+  status     DocumentStatus @default(pending)
+  /// Storage object path once uploads are real.
+  url        String?
+  uploadedAt DateTime       @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+
+  request VerificationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("verification_documents")
+}
+
+model VerificationChecklistItem {
+  id          String  @id @default(cuid())
+  requestId   String  @map("request_id")
+  /// Stable key from DEFAULT_CHECKLIST, e.g. "ck-title".
+  key         String
+  label       String
+  description String
+  done        Boolean @default(false)
+  position    Int
+
+  request VerificationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@unique([requestId, key])
+  @@map("verification_checklist_items")
+}
+
+model VerificationNote {
+  id         String   @id @default(cuid())
+  requestId  String   @map("request_id")
+  authorName String   @map("author_name")
+  body       String
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  request VerificationRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, createdAt])
+  @@map("verification_notes")
+}
+
+// ─── Tenant search & applications ─────────────────────────────────────────────
+
+model SavedProperty {
+  profileId  String   @map("profile_id")
+  propertyId String   @map("property_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  profile  Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([profileId, propertyId])
+  @@map("saved_properties")
+}
+
+model Application {
+  id           String            @id @default(cuid())
+  propertyId   String            @map("property_id")
+  tenantId     String            @map("tenant_id")
+  status       ApplicationStatus @default(pending)
+  moveInDate   DateTime          @map("move_in_date") @db.Date
+  leaseYears   Int               @map("lease_years")
+  message      String
+  /// File names the tenant attached.
+  documents    String[]
+  landlordNote String?           @map("landlord_note")
+  submittedAt  DateTime          @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  property Property        @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  tenant   Profile         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  invoice  PaymentInvoice?
+
+  @@index([propertyId, status])
   @@index([tenantId, status])
   @@map("applications")
 }
 
 model WaitingList {
-  id          String   @id
-  tenantId    String
-  city        String
-  areas       String[]
-  propertyType String
-  bedrooms    Int
-  minBudget   Int
-  maxBudget   Int
-  moveIn      String
-  status      String   @default("active")
-  createdAt   DateTime @default(now())
+  id           String            @id @default(cuid())
+  tenantId     String            @map("tenant_id")
+  city         String
+  areas        String[]
+  propertyType String            @map("property_type")
+  bedrooms     Int
+  minBudget    Int               @map("min_budget")
+  maxBudget    Int               @map("max_budget")
+  moveIn       String            @map("move_in")
+  status       WaitingListStatus @default(active)
+  createdAt    DateTime          @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  tenant Profile @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([status, city])
+  @@index([tenantId])
   @@map("waiting_lists")
 }
 
-model Lease {
-  id           String      @id
-  propertyId    String
-  tenantId      String
-  unit          String
-  leaseStart    DateTime
-  leaseEnd      DateTime
-  annualRent    Int
-  status        LeaseStatus @default(active)
-  lastPaymentAt DateTime?
-  intent        Json?
-  rentReview    Json?
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
+// ─── Tenancy ──────────────────────────────────────────────────────────────────
 
+model Lease {
+  id            String      @id @default(cuid())
+  propertyId    String      @map("property_id")
+  tenantId      String      @map("tenant_id")
+  unit          String
+  leaseStart    DateTime    @map("lease_start") @db.Date
+  leaseEnd      DateTime    @map("lease_end") @db.Date
+  annualRent    Int         @map("annual_rent")
+  status        LeaseStatus @default(active)
+  lastPaymentAt DateTime?   @map("last_payment_at") @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime    @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  property    Property             @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  tenant      Profile              @relation(fields: [tenantId], references: [id], onDelete: Restrict)
+  intent      LeaseIntent?
+  rentReviews RentReview[]
+  invoice     PaymentInvoice?
+  refund      CautionRefund?
+  rentPlans   RentPlan[]
+  maintenance MaintenanceRequest[]
+
+  @@index([tenantId])
+  @@index([propertyId])
   @@map("leases")
 }
 
-model VerificationRequest {
-  id           String            @id
-  propertyId    String
-  submittedAt  DateTime          @default(now())
-  stage        VerificationStage
-  priority     String
-  inspector    String?
-  inspectionDate DateTime?
-  documents    Json
-  checklist    Json
-  notes        Json
-  riskFlags    String[]
-  createdAt    DateTime          @default(now())
-  updatedAt    DateTime          @updatedAt
+/// Tenant's end-of-term decision (renew or move out) and the landlord's response.
+model LeaseIntent {
+  leaseId             String               @id @map("lease_id")
+  decision            LeaseDecision
+  renewYears          Int?                 @map("renew_years")
+  moveOutDate         DateTime?            @map("move_out_date") @db.Date
+  reason              String?
+  note                String?
+  submittedAt         DateTime             @default(now()) @map("submitted_at") @db.Timestamptz(3)
+  landlordResponse    LeaseIntentResponse? @map("landlord_response")
+  landlordRespondedAt DateTime?            @map("landlord_responded_at") @db.Timestamptz(3)
 
-  @@map("verification_requests")
+  lease Lease @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+
+  @@map("lease_intents")
 }
 
-model Report {
-  id          String       @id
-  category    ReportCategory
-  subject     String
-  subjectId   String
-  reason      String
-  details     String
-  reportedBy  String
-  severity    String
-  status      ReportStatus @default(open)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+/// Landlord-initiated rent change for the next term. The latest non-withdrawn review is the current one.
+model RentReview {
+  id             String           @id @default(cuid())
+  leaseId        String           @map("lease_id")
+  currentRent    Int              @map("current_rent")
+  proposedRent   Int              @map("proposed_rent")
+  effectiveFrom  DateTime         @map("effective_from") @db.Date
+  noticeServedAt DateTime         @map("notice_served_at") @db.Timestamptz(3)
+  negotiable     Boolean
+  status         RentReviewStatus @default(proposed)
+  agreedRent     Int?             @map("agreed_rent")
+  agreedAt       DateTime?        @map("agreed_at") @db.Timestamptz(3)
+  createdAt      DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
-  @@map("reports")
+  lease  Lease       @relation(fields: [leaseId], references: [id], onDelete: Cascade)
+  offers RentOffer[]
+
+  @@index([leaseId, createdAt])
+  @@map("rent_reviews")
 }
 
-model Notification {
-  id        String          @id
-  userId    String
-  title     String
-  body      String
-  kind      NotificationKind
-  href      String?
-  read      Boolean         @default(false)
-  createdAt DateTime        @default(now())
+model RentOffer {
+  id       String   @id @default(cuid())
+  reviewId String   @map("review_id")
+  by       Party
+  amount   Int
+  note     String?
+  at       DateTime @default(now()) @db.Timestamptz(3)
 
-  @@index([userId, read])
-  @@map("notifications")
+  review RentReview @relation(fields: [reviewId], references: [id], onDelete: Cascade)
+
+  @@index([reviewId, at])
+  @@map("rent_offers")
 }
 
-model MaintenanceRequest {
-  id          String             @id
-  leaseId     String
-  propertyId   String
-  tenantId     String
-  landlordId   String
-  title       String
-  category    String
-  location    String
-  description  String
-  urgency     String
-  media       Json
-  status      MaintenanceStatus @default(submitted)
-  createdAt   DateTime           @default(now())
-  updatedAt   DateTime           @updatedAt
-  investigation Json?
-  landlordDecision Json?
-  technician Json?
-  completion Json?
-  tenantFeedback Json?
-  timeline Json
+// ─── Money ────────────────────────────────────────────────────────────────────
 
-  @@map("maintenance_requests")
+/// A bank-transfer receipt the tenant uploaded. Used by move-in invoices and rent-plan installments.
+model PaymentReceipt {
+  id         String   @id @default(cuid())
+  name       String
+  fileKind   FileKind @map("file_kind")
+  url        String
+  amountPaid Int      @map("amount_paid")
+  paidOn     DateTime @map("paid_on") @db.Timestamptz(3)
+  payerBank  String   @map("payer_bank")
+  uploadedAt DateTime @default(now()) @map("uploaded_at") @db.Timestamptz(3)
+
+  invoice      PaymentInvoice?
+  contribution RentContribution?
+
+  @@map("payment_receipts")
 }
 
+/// Move-in invoice raised when a landlord approves an application. Paid to renton.
 model PaymentInvoice {
-  id              String        @id
-  applicationId   String?
-  propertyId       String
-  tenantId         String
-  landlordId       String
-  reference       String
-  items           Json
+  id              String        @id @default(cuid())
+  applicationId   String?       @unique @map("application_id")
+  propertyId      String        @map("property_id")
+  tenantId        String        @map("tenant_id")
+  landlordId      String        @map("landlord_id")
+  reference       String        @unique
   total           Int
-  createdAt       DateTime      @default(now())
-  dueDate         DateTime
   status          PaymentStatus @default(awaiting_payment)
-  receipt         Json?
-  rejectionReason String?
-  verifiedAt      DateTime?
-  verifiedBy      String?
-  receiptNumber   String?
-  agreementNumber String?
-  leaseId         String?
+  dueDate         DateTime      @map("due_date") @db.Timestamptz(3)
+  /// The receipt currently under review or accepted; replaced on re-upload.
+  receiptId       String?       @unique @map("receipt_id")
+  rejectionReason String?       @map("rejection_reason")
+  verifiedAt      DateTime?     @map("verified_at") @db.Timestamptz(3)
+  verifiedById    String?       @map("verified_by_id")
+  receiptNumber   String?       @unique @map("receipt_number")
+  agreementNumber String?       @unique @map("agreement_number")
+  leaseId         String?       @unique @map("lease_id")
+  createdAt       DateTime      @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt       DateTime      @updatedAt @map("updated_at") @db.Timestamptz(3)
 
+  application Application?    @relation(fields: [applicationId], references: [id], onDelete: SetNull)
+  property    Property        @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  tenant      Profile         @relation("InvoiceTenant", fields: [tenantId], references: [id], onDelete: Restrict)
+  landlord    Profile         @relation("InvoiceLandlord", fields: [landlordId], references: [id], onDelete: Restrict)
+  verifiedBy  Profile?        @relation("InvoiceVerifier", fields: [verifiedById], references: [id], onDelete: SetNull)
+  receipt     PaymentReceipt? @relation(fields: [receiptId], references: [id], onDelete: SetNull)
+  lease       Lease?          @relation(fields: [leaseId], references: [id], onDelete: SetNull)
+  items       InvoiceItem[]
+
+  @@index([status])
+  @@index([tenantId])
   @@map("payment_invoices")
 }
 
-model CautionRefund {
-  id          String   @id
-  leaseId     String
-  tenantId    String
-  propertyId  String
-  landlordId  String
-  amount      Int
-  requestedAt DateTime @default(now())
-  eligibleFrom DateTime
-  bank        Json
-  status      String   @default("requested")
-  deduction   Json?
-  approvedAt  DateTime?
-  paidAt      DateTime?
-  payoutReference String?
+model InvoiceItem {
+  id        String         @id @default(cuid())
+  invoiceId String         @map("invoice_id")
+  key       InvoiceItemKey
+  label     String
+  amount    Int
 
+  invoice PaymentInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, key])
+  @@map("invoice_items")
+}
+
+/// requested → approved (with any deduction) → paid. Payable 30 days after move-out notice.
+model CautionRefund {
+  id              String       @id @default(cuid())
+  leaseId         String       @unique @map("lease_id")
+  tenantId        String       @map("tenant_id")
+  propertyId      String       @map("property_id")
+  landlordId      String       @map("landlord_id")
+  amount          Int
+  eligibleFrom    DateTime     @map("eligible_from") @db.Timestamptz(3)
+  bankName        String       @map("bank_name")
+  accountNumber   String       @map("account_number")
+  accountName     String       @map("account_name")
+  status          RefundStatus @default(requested)
+  deductionAmount Int?         @map("deduction_amount")
+  deductionReason String?      @map("deduction_reason")
+  approvedAt      DateTime?    @map("approved_at") @db.Timestamptz(3)
+  paidAt          DateTime?    @map("paid_at") @db.Timestamptz(3)
+  payoutReference String?      @map("payout_reference")
+  requestedAt     DateTime     @default(now()) @map("requested_at") @db.Timestamptz(3)
+
+  lease    Lease    @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  tenant   Profile  @relation("RefundTenant", fields: [tenantId], references: [id], onDelete: Restrict)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  landlord Profile  @relation("RefundLandlord", fields: [landlordId], references: [id], onDelete: Restrict)
+
+  @@index([status])
   @@map("caution_refunds")
 }
 
+/// Tenant saves towards the next annual rent. One plan per lease term (`dueDate` = term end).
 model RentPlan {
-  id          String   @id
-  leaseId     String
-  tenantId    String
-  propertyId  String
-  landlordId  String
-  reference   String
-  dueDate     DateTime
-  schedule    String
-  createdAt   DateTime @default(now())
-  contributions Json
-  status      String   @default("saving")
-  payout      Json?
+  id              String           @id @default(cuid())
+  leaseId         String           @map("lease_id")
+  tenantId        String           @map("tenant_id")
+  propertyId      String           @map("property_id")
+  landlordId      String           @map("landlord_id")
+  /// Narration the tenant puts on every transfer.
+  reference       String           @unique
+  dueDate         DateTime         @map("due_date") @db.Date
+  schedule        RentPlanSchedule
+  status          RentPlanStatus   @default(saving)
+  /// Frozen when renton pays the landlord.
+  payoutAmount    Int?             @map("payout_amount")
+  payoutReference String?          @map("payout_reference")
+  payoutAt        DateTime?        @map("payout_at") @db.Timestamptz(3)
+  payoutById      String?          @map("payout_by_id")
+  createdAt       DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  lease         Lease              @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  tenant        Profile            @relation("RentPlanTenant", fields: [tenantId], references: [id], onDelete: Restrict)
+  property      Property           @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  landlord      Profile            @relation("RentPlanLandlord", fields: [landlordId], references: [id], onDelete: Restrict)
+  payoutBy      Profile?           @relation("RentPlanPayer", fields: [payoutById], references: [id], onDelete: SetNull)
+  contributions RentContribution[]
+
+  @@unique([leaseId, dueDate])
+  @@index([status])
   @@map("rent_plans")
 }
 
 model RentContribution {
-  id         String   @id
-  rentPlanId String
-  amount     Int
-  receipt    Json
-  status     String   @default("submitted")
-  rejectionReason String?
-  verifiedAt DateTime?
-  receiptNumber String?
-  createdAt  DateTime @default(now())
+  id              String             @id @default(cuid())
+  planId          String             @map("plan_id")
+  amount          Int
+  receiptId       String             @unique @map("receipt_id")
+  status          ContributionStatus @default(submitted)
+  rejectionReason String?            @map("rejection_reason")
+  verifiedAt      DateTime?          @map("verified_at") @db.Timestamptz(3)
+  receiptNumber   String?            @unique @map("receipt_number")
+  createdAt       DateTime           @default(now()) @map("created_at") @db.Timestamptz(3)
 
+  plan    RentPlan       @relation(fields: [planId], references: [id], onDelete: Cascade)
+  receipt PaymentReceipt @relation(fields: [receiptId], references: [id], onDelete: Restrict)
+
+  @@index([planId, status])
   @@map("rent_contributions")
+}
+
+// ─── Maintenance ──────────────────────────────────────────────────────────────
+
+model Technician {
+  id            String  @id @default(cuid())
+  name          String
+  trade         String
+  company       String
+  phone         String
+  rating        Float   @default(0)
+  jobsCompleted Int     @default(0) @map("jobs_completed")
+  active        Boolean @default(true)
+
+  jobs MaintenanceRequest[]
+
+  @@map("technicians")
+}
+
+/// submitted → investigating (admin) → awaiting_approval (landlord) → approved → in_progress (technician) → completed.
+model MaintenanceRequest {
+  id          String             @id @default(cuid())
+  leaseId     String             @map("lease_id")
+  propertyId  String             @map("property_id")
+  tenantId    String             @map("tenant_id")
+  landlordId  String             @map("landlord_id")
+  title       String
+  category    String
+  location    String
+  description String
+  urgency     MaintenanceUrgency
+  status      MaintenanceStatus  @default(submitted)
+
+  investigatorName String?   @map("investigator_name")
+  findings         String?
+  recommendedFix   String?   @map("recommended_fix")
+  estimatedCost    Int?      @map("estimated_cost")
+  investigatedAt   DateTime? @map("investigated_at") @db.Timestamptz(3)
+
+  landlordApproved Boolean?  @map("landlord_approved")
+  landlordNote     String?   @map("landlord_note")
+  decidedAt        DateTime? @map("decided_at") @db.Timestamptz(3)
+
+  technicianId String?   @map("technician_id")
+  scheduledFor DateTime? @map("scheduled_for") @db.Timestamptz(3)
+
+  completedAt    DateTime? @map("completed_at") @db.Timestamptz(3)
+  completionNote String?   @map("completion_note")
+
+  rating          Int?
+  feedbackComment String?   @map("feedback_comment")
+  ratedAt         DateTime? @map("rated_at") @db.Timestamptz(3)
+
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  lease      Lease              @relation(fields: [leaseId], references: [id], onDelete: Restrict)
+  property   Property           @relation(fields: [propertyId], references: [id], onDelete: Restrict)
+  tenant     Profile            @relation("MaintenanceTenant", fields: [tenantId], references: [id], onDelete: Restrict)
+  landlord   Profile            @relation("MaintenanceLandlord", fields: [landlordId], references: [id], onDelete: Restrict)
+  technician Technician?        @relation(fields: [technicianId], references: [id], onDelete: SetNull)
+  media      MaintenanceMedia[]
+  events     MaintenanceEvent[]
+
+  @@index([status])
+  @@index([tenantId])
+  @@index([landlordId, status])
+  @@map("maintenance_requests")
+}
+
+model MaintenanceMedia {
+  id        String    @id @default(cuid())
+  requestId String    @map("request_id")
+  kind      MediaKind
+  url       String
+  name      String
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId])
+  @@map("maintenance_media")
+}
+
+/// Timeline entry. `byName` is a display name ("renton", a person) rather than a profile reference.
+model MaintenanceEvent {
+  id        String            @id @default(cuid())
+  requestId String            @map("request_id")
+  status    MaintenanceStatus
+  label     String
+  note      String?
+  byName    String            @map("by_name")
+  at        DateTime          @default(now()) @db.Timestamptz(3)
+
+  request MaintenanceRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+
+  @@index([requestId, at])
+  @@map("maintenance_events")
+}
+
+// ─── Trust & safety, notifications, messaging ─────────────────────────────────
+
+model Report {
+  id           String         @id @default(cuid())
+  category     ReportCategory
+  subject      String
+  /// A profile id, property id, or external reference ("ext-…").
+  subjectId    String         @map("subject_id")
+  reason       String
+  details      String
+  reporterName String         @map("reporter_name")
+  severity     ReportSeverity
+  status       ReportStatus   @default(open)
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([status, severity])
+  @@map("reports")
+}
+
+model Notification {
+  id        String           @id @default(cuid())
+  profileId String           @map("profile_id")
+  title     String
+  body      String
+  kind      NotificationKind
+  href      String?
+  read      Boolean          @default(false)
+  createdAt DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  profile Profile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId, read, createdAt])
+  @@map("notifications")
+}
+
+model MessageThread {
+  id         String   @id @default(cuid())
+  propertyId String?  @map("property_id")
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  property     Property?                  @relation(fields: [propertyId], references: [id], onDelete: SetNull)
+  participants MessageThreadParticipant[]
+  messages     Message[]
+
+  @@map("message_threads")
+}
+
+model MessageThreadParticipant {
+  threadId   String    @map("thread_id")
+  profileId  String    @map("profile_id")
+  lastReadAt DateTime? @map("last_read_at") @db.Timestamptz(3)
+
+  thread  MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  profile Profile       @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@id([threadId, profileId])
+  @@index([profileId])
+  @@map("message_thread_participants")
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  threadId  String   @map("thread_id")
+  senderId  String   @map("sender_id")
+  body      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  thread MessageThread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+  sender Profile       @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@index([threadId, createdAt])
+  @@map("messages")
 }

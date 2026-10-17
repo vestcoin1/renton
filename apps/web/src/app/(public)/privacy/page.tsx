@@ -21,7 +21,7 @@ export default function PrivacyPage() {
       </section>
       <section>
         <h2>Your rights</h2>
-        <p>Under the Nigeria Data Protection Act 2023 you may access, correct or delete your personal data. Contact privacyrenton.ng.</p>
+        <p>Under the Nigeria Data Protection Act 2023 you may access, correct or delete your personal data. Contact privacy@renton.ng.</p>
       </section>
     </ContentPage>
   );

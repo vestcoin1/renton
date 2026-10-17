@@ -8,12 +8,14 @@ A frontend prototype of a Nigerian property platform that connects tenants with 
 npm install        # run from the repo root; installs every workspace
 npm run dev        # web + admin; open http://localhost:3000 (admin at /admin, proxied from :3001)
 npm run dev:web    # web only (/admin will not load)
+npm run dev:mobile # Expo mobile app; press a for Android
+npm run web:mobile # mobile app in a browser
 npm run build      # production builds of web and admin (type-checks too)
 npm run typecheck  # all workspaces
 npm run verify     # simulated-backend workflow checks
 ```
 
-**Accounts:** tenants and landlords create an account at `/signup` with their email and a password, then sign in at `/login`. The seeded demo accounts all use the password `demo1234`, and the login page has buttons that fill them in: **Tenant** (`chiamaka.eze@example.com`), **Landlord** (`ngozi.adeyemi@example.com`) and **Verification Team** (`ibrahimrenton.ng`). Portal URLs (`/tenant`, `/landlord`, `/admin`) redirect to `/login` when you are signed out, and to your own portal if you have a different role. Use the avatar menu to switch to a demo account or to **Reset demo data**. Resetting deletes accounts created during the demo.
+**Accounts:** tenants and landlords create an account at `/signup` with their email and a password, then sign in at `/login`. The seeded demo accounts all use the password `demo1234`, and the login page has buttons that fill them in: **Tenant** (`chiamaka.eze@example.com`), **Landlord** (`ngozi.adeyemi@example.com`) and **Verification Team** (`ibrahim@renton.ng`). Portal URLs (`/tenant`, `/landlord`, `/admin`) redirect to `/login` when you are signed out, and to your own portal if you have a different role. Use the avatar menu to switch to a demo account or to **Reset demo data**. Resetting deletes accounts created during the demo.
 
 Changes you make (applying, approving, verifying, marking vacancies, creating waiting lists) are saved to `localStorage` and carry across all three portals. For example:
 
@@ -33,7 +35,7 @@ One repo, several independently deployable apps (npm workspaces):
 apps/
 â”œâ”€ web/        Public site + tenant and landlord portals, deploys to Vercel
 â”œâ”€ admin/      Verification team portal (/admin), its own deployment (see apps/admin/README.md)
-â”œâ”€ api/        Backend for web, admin and mobile (planned, see apps/api/README.md)
+â”œâ”€ api/        Backend for web, admin and mobile: Hono + Prisma (in progress, see apps/api/README.md)
 â””â”€ mobile/     Expo app for iOS and Android (planned, see apps/mobile/README.md)
 packages/
 â”œâ”€ core/       Data layer + domain logic: store, hooks, auth, identity, fees, tenancy rules, mock data, zones

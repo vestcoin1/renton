@@ -1,12 +1,22 @@
-﻿# renton-mobile (not built yet)
+﻿# renton-mobile
 
-iOS and Android app from one codebase.
+Renton mobile is an Expo app for discovering verified rental homes in Nigeria. It currently uses the monorepo's shared mock listing data; the API does not yet expose mobile listing or authentication endpoints.
 
-## Planned stack
+## Run locally
 
-- React Native with Expo; builds and store submissions through EAS
-- Uses `renton-shared` for domain types, reference data (cities, property types, budgets) and the API client
-- Talks only to `apps/api`; sign-in uses the same JWTs as the web app
-- Push notifications through Expo Push for application decisions, rent reminders and repair updates
+```bash
+npm run start -w renton-mobile
+```
+
+Press `a` to open Android, or use `npm run web -w renton-mobile` for a browser preview. iOS simulator and device builds require macOS or EAS Build.
+
+## Current scope
+
+- Browse published listings by city, keyword, bedrooms and annual rent
+- Save homes locally on the device
+- Open a listing for its details and amenities
+- Expo Router navigation for native and web previews
+
+Authentication, applications, landlord workflows and push notifications will connect after the API endpoints are available.
 
 

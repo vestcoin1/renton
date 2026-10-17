@@ -54,7 +54,7 @@ export async function signIn(emailInput: string, password: string): Promise<Resu
   if ((await hashPassword(password, cred.salt)) !== cred.passwordHash) return invalid;
   const user = users.find((u) => u.id === cred.userId);
   if (!user) return invalid;
-  if (user.status === "suspended") return { ok: false, error: "This account has been suspended. Contact supportrenton.ng." };
+  if (user.status === "suspended") return { ok: false, error: "This account has been suspended. Contact support@renton.ng." };
   login(user.id);
   return { ok: true, role: user.role };
 }

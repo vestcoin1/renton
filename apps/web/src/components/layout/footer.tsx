@@ -56,7 +56,7 @@ export function Footer() {
                 <Phone className="size-4 text-primary" /> +234 700 466 3347
               </p>
               <p className="flex items-center gap-2">
-                <Mail className="size-4 text-primary" /> hellorenton.ng
+                <Mail className="size-4 text-primary" /> hello@renton.ng
               </p>
             </div>
           </div>

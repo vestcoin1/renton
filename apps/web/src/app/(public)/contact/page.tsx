@@ -34,7 +34,7 @@ export default function ContactPage() {
           {[
             { icon: Phone, t: "Call us", d: "+234 700 466 3347 Â· Monâ€“Sat, 8amâ€“8pm WAT" },
             { icon: MessageCircle, t: "WhatsApp", d: "+234 812 000 4663" },
-            { icon: Mail, t: "Email", d: "hellorenton.ng" },
+            { icon: Mail, t: "Email", d: "hello@renton.ng" },
             { icon: MapPin, t: "Visit", d: "12 Admiralty Way, Lekki Phase 1, Lagos" },
           ].map((c) => (
             <div key={c.t} className="flex items-center gap-4 rounded-xl border bg-card p-4">

@@ -1,0 +1,24 @@
+# Local Postgres for apps/api development and tests.
+#   npm run db:up    start (creates the `renton` and `renton_test` databases)
+#   npm run db:down  stop (data is kept in the renton-db volume)
+services:
+  db:
+    image: postgres:17-alpine
+    container_name: renton-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: renton
+    ports:
+      - "54329:5432"
+    volumes:
+      - renton-db:/var/lib/postgresql/data
+      - ./apps/api/docker/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d renton"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+volumes:
+  renton-db:

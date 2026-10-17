@@ -50,7 +50,7 @@ function AdminLoginForm() {
     <form onSubmit={submit} className="space-y-5">
       <div className="grid gap-2">
         <Label htmlFor="email">Work email</Label>
-        <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="yourenton.ng" />
+        <Input id="email" type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@renton.ng" />
       </div>
       <div className="grid gap-2">
         <Label htmlFor="password">Password</Label>
