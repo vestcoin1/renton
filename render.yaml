@@ -1,0 +1,47 @@
+# Render Blueprint for renton-api (apps/api). Database, Auth and Storage are on Supabase.
+# Render dashboard → New → Blueprint → pick this repo; it prompts for every `sync: false` value.
+services:
+  - type: web
+    name: renton-api
+    runtime: node
+    plan: free # cold-starts after ~15 min idle; switch to `starter` for always-on
+    region: oregon
+    # Dev dependencies (prisma, tsup) are needed to build, and NODE_ENV=production would skip them.
+    # `prisma migrate deploy` only applies migrations that haven't run yet; it never resets data.
+    buildCommand: >-
+      npm ci --include=dev &&
+      npm run prisma:generate -w renton-api &&
+      npm run build -w renton-api &&
+      npm run prisma:deploy -w renton-api
+    startCommand: npm run start -w renton-api
+    healthCheckPath: /health
+    autoDeploy: true
+    # Only redeploy when the API or the packages it bundles change.
+    buildFilter:
+      paths:
+        - apps/api/**
+        - packages/core/**
+        - packages/shared/**
+        - package-lock.json
+        - render.yaml
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: LOG_LEVEL
+        value: info
+      - key: DEV_AUTH
+        value: "false"
+      # Supabase → Connect → "Session pooler" string (IPv4, port 5432). Works for queries and migrations.
+      - key: DATABASE_URL
+        sync: false
+      # https://<project-ref>.supabase.co
+      - key: SUPABASE_URL
+        sync: false
+      # Supabase → Project Settings → API keys → service_role / secret key. Server-only.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      # Comma-separated frontend origins, e.g. https://renton-web.vercel.app,https://renton-admin.vercel.app
+      - key: CORS_ORIGINS
+        sync: false

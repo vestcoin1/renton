@@ -28,6 +28,17 @@ How users get in: the client signs up or signs in with `supabase-js`, then sends
 
 How file uploads work: `POST /v1/uploads` returns a signed upload URL and a `ref` (`storage:<bucket>/<owner>/<file>`). Upload the file with `PUT`, then attach the `ref` to the record. Private files come back as short-lived signed URLs, and only to people allowed to see them. Without Storage configured (local development), inline `data:` URLs are accepted, as in the prototype.
 
+## Deploying (Render)
+
+[render.yaml](../../render.yaml) at the repo root defines the service. Docker isn't involved; Render builds from the repo.
+
+1. Render dashboard → **New → Blueprint**, then pick this repo and the branch to deploy.
+2. Fill in the prompted values: `DATABASE_URL` (Supabase **Session pooler** string), `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `CORS_ORIGINS`.
+3. Each build runs `prisma migrate deploy`, which applies new migrations to Supabase. It never resets data.
+4. Run `npm run db:seed` from your machine against the Supabase `DATABASE_URL` only if you want the demo data there. To create the storage buckets, run `npm run supabase:setup -- buckets` the same way.
+
+The free instance sleeps after ~15 minutes idle. Change `plan` to `starter` for always-on.
+
 ## Endpoints (`/v1`)
 
 | Area | Endpoints |
